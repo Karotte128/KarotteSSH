@@ -53,6 +53,10 @@ func setRequestHandlers(reqHandlers RequestHandlers) {
 	if reqHandlers["window-change"] == nil {
 		reqHandlers["window-change"] = defaultHandleWindowChange
 	}
+
+	if reqHandlers["shell"] == nil {
+		reqHandlers["shell"] = defaultHandleShell
+	}
 }
 
 func handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {

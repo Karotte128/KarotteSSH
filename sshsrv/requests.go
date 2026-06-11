@@ -41,9 +41,7 @@ func defaultHandlePty(_ *SessionState, req ssh.Request) {
 		pty.HeightRows,
 	)
 
-	if req.WantReply {
-		req.Reply(true, nil)
-	}
+	req.Reply(true, nil)
 }
 
 func defaultHandleWindowChange(_ *SessionState, req ssh.Request) {
@@ -56,4 +54,25 @@ func defaultHandleWindowChange(_ *SessionState, req ssh.Request) {
 			wc.HeightRows,
 		)
 	}
+
+	req.Reply(false, nil)
+}
+
+func defaultHandleShell(state *SessionState, req ssh.Request) {
+	req.Reply(true, nil)
+
+	go func() {
+		defer state.Close()
+
+		buf := make([]byte, 1024)
+
+		for {
+			n, err := state.Channel.Read(buf)
+			if err != nil {
+				return
+			}
+
+			state.Channel.Write(buf[:n]) // echo back
+		}
+	}()
 }
