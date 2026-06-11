@@ -11,10 +11,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type sessionHandler func(ch ssh.Channel, reqs <-chan *ssh.Request)
-
-var sessionHandlerFunc sessionHandler
-
 func handleServerConn(channels <-chan ssh.NewChannel) {
 	for newChannel := range channels {
 		if newChannel.ChannelType() != "session" {
@@ -28,7 +24,7 @@ func handleServerConn(channels <-chan ssh.NewChannel) {
 			continue
 		}
 
-		go sessionHandlerFunc(ch, reqs)
+		go handleSession(ch, reqs)
 	}
 }
 
@@ -80,7 +76,7 @@ func getHostKeys() ([]ssh.Signer, error) {
 	return hostKeys, nil
 }
 
-func RunServer(port int, sh sessionHandler) {
+func RunServer(port int, reqHandlers RequestHandlers) {
 	config := &ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 			authorized, err := authorizePublicKey(key)
@@ -105,7 +101,7 @@ func RunServer(port int, sh sessionHandler) {
 		config.AddHostKey(key)
 	}
 
-	sessionHandlerFunc = sh
+	setRequestHandlers(reqHandlers)
 
 	listen(config, port)
 }

@@ -1,4 +1,4 @@
-package utils
+package sshsrv
 
 import (
 	"log"
@@ -22,7 +22,7 @@ type WindowChange struct {
 	HeightPixels uint32
 }
 
-func HandlePty(req ssh.Request) {
+func defaultHandlePty(_ *SessionState, req ssh.Request) {
 	var pty PtyRequest
 
 	if err := ssh.Unmarshal(req.Payload, &pty); err != nil {
@@ -46,7 +46,7 @@ func HandlePty(req ssh.Request) {
 	}
 }
 
-func HandleWindowChange(req ssh.Request) {
+func defaultHandleWindowChange(_ *SessionState, req ssh.Request) {
 	var wc WindowChange
 
 	if err := ssh.Unmarshal(req.Payload, &wc); err == nil {
