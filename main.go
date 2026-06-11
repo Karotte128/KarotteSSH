@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"log"
 	"ssh-go/sshsrv"
+	"ssh-go/utils"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -11,39 +11,33 @@ import (
 func runShell(ch ssh.Channel) {
 	defer ch.Close()
 
-	scanner := bufio.NewScanner(ch)
+	buf := make([]byte, 1024)
 
 	for {
-		ch.Write([]byte("> "))
-
-		if !scanner.Scan() {
-			log.Println("scanner ended")
+		n, err := ch.Read(buf)
+		if err != nil {
 			return
 		}
 
-		if err := scanner.Err(); err != nil {
-			log.Println(err)
-		}
-
-		log.Printf("received: %q", scanner.Text())
+		ch.Write(buf[:n]) // echo back
 	}
 }
 
 func handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	for req := range reqs {
 		switch req.Type {
-
 		case "pty-req":
-			req.Reply(true, nil)
-
+			utils.HandlePty(*req)
+		case "window-change":
+			utils.HandleWindowChange(*req)
 		case "shell":
 			req.Reply(true, nil)
 
 			go runShell(ch)
 
 		default:
-			req.Reply(false, nil)
 			log.Printf("Request type %v not implemented!", req.Type)
+			req.Reply(false, nil)
 		}
 	}
 }
