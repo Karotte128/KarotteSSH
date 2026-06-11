@@ -9,14 +9,15 @@ import (
 
 type SessionState struct {
 	Channel ssh.Channel
+	Storage map[string]any
 
-	mu     sync.RWMutex
+	Mu     sync.RWMutex
 	closed bool
 }
 
 func (s *SessionState) Close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 
 	if s.closed {
 		return
@@ -31,8 +32,8 @@ func (s *SessionState) Close() {
 }
 
 func (s *SessionState) Closed() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.Mu.RLock()
+	defer s.Mu.RUnlock()
 
 	return s.closed
 }
@@ -66,6 +67,7 @@ func setRequestHandlers(reqHandlers RequestHandlers) {
 func handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	state := SessionState{
 		Channel: ch,
+		Storage: make(map[string]any),
 	}
 
 	for req := range reqs {

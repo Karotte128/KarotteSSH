@@ -31,7 +31,7 @@ func sendExitStatus(ch ssh.Channel, status uint32) {
 	_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: status}))
 }
 
-func defaultHandlePty(_ *SessionState, req ssh.Request) {
+func defaultHandlePty(state *SessionState, req ssh.Request) {
 	var pty PtyRequest
 
 	if err := ssh.Unmarshal(req.Payload, &pty); err != nil {
@@ -43,26 +43,31 @@ func defaultHandlePty(_ *SessionState, req ssh.Request) {
 		return
 	}
 
-	log.Printf(
-		"PTY: term=%s size=%dx%d",
-		pty.Term,
-		pty.WidthChars,
-		pty.HeightRows,
-	)
+	state.Mu.Lock()
+	state.Storage["term"] = pty.Term
+	state.Storage["width"] = pty.WidthChars
+	state.Storage["height"] = pty.HeightRows
+	state.Mu.Unlock()
 
 	req.Reply(true, nil)
 }
 
-func defaultHandleWindowChange(_ *SessionState, req ssh.Request) {
+func defaultHandleWindowChange(state *SessionState, req ssh.Request) {
 	var wc WindowChange
 
-	if err := ssh.Unmarshal(req.Payload, &wc); err == nil {
-		log.Printf(
-			"resize: %dx%d",
-			wc.WidthChars,
-			wc.HeightRows,
-		)
+	if err := ssh.Unmarshal(req.Payload, &wc); err != nil {
+		log.Printf("failed to parse pty request: %v", err)
+
+		if req.WantReply {
+			req.Reply(false, nil)
+		}
+		return
 	}
+
+	state.Mu.Lock()
+	state.Storage["width"] = wc.WidthChars
+	state.Storage["height"] = wc.HeightRows
+	state.Mu.Unlock()
 
 	req.Reply(false, nil)
 }
