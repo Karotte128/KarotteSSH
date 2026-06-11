@@ -1,6 +1,7 @@
 package sshsrv
 
 import (
+	"fmt"
 	"log"
 
 	"golang.org/x/crypto/ssh"
@@ -20,6 +21,14 @@ type WindowChange struct {
 	HeightRows   uint32
 	WidthPixels  uint32
 	HeightPixels uint32
+}
+
+type ExecRequest struct {
+	Command string
+}
+
+func sendExitStatus(ch ssh.Channel, status uint32) {
+	_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: status}))
 }
 
 func defaultHandlePty(_ *SessionState, req ssh.Request) {
@@ -56,6 +65,28 @@ func defaultHandleWindowChange(_ *SessionState, req ssh.Request) {
 	}
 
 	req.Reply(false, nil)
+}
+
+func defaultHandleExec(state *SessionState, req ssh.Request) {
+	defer state.Close()
+
+	var payload ExecRequest
+
+	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
+		req.Reply(false, nil)
+		return
+	}
+
+	req.Reply(true, nil)
+
+	resp := fmt.Sprintf("exec command: %q\n", payload.Command)
+
+	_, err := state.Channel.Write([]byte(resp))
+	if err != nil {
+		log.Printf("error writing to channel: %v", err)
+	}
+
+	sendExitStatus(state.Channel, 0)
 }
 
 func defaultHandleShell(state *SessionState, req ssh.Request) {

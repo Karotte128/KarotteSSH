@@ -54,6 +54,10 @@ func setRequestHandlers(reqHandlers RequestHandlers) {
 		reqHandlers["window-change"] = defaultHandleWindowChange
 	}
 
+	if reqHandlers["exec"] == nil {
+		reqHandlers["exec"] = defaultHandleExec
+	}
+
 	if reqHandlers["shell"] == nil {
 		reqHandlers["shell"] = defaultHandleShell
 	}
