@@ -5,8 +5,6 @@ import (
 )
 
 func main() {
-	config := sshsrv.Config{}
-	config.Authentication.EnablePublicKeyAuth = true
-
+	config := sshsrv.NewConfig()
 	sshsrv.RunServer(config)
 }

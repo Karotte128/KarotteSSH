@@ -7,7 +7,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type SessionState struct {
+type Session struct {
 	Channel ssh.Channel
 	Storage map[string]any
 
@@ -15,7 +15,7 @@ type SessionState struct {
 	closed bool
 }
 
-func (s *SessionState) Close() {
+func (s *Session) Close() {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -31,41 +31,23 @@ func (s *SessionState) Close() {
 	}
 }
 
-func (s *SessionState) Closed() bool {
+func (s *Session) Closed() bool {
 	s.Mu.RLock()
 	defer s.Mu.RUnlock()
 
 	return s.closed
 }
 
-type RequestHandler func(state *SessionState, req ssh.Request)
-
-type RequestHandlers map[string]RequestHandler
+type RequestHandlers map[string]func(state *Session, req ssh.Request)
 
 var handlers RequestHandlers
 
 func setRequestHandlers(reqHandlers RequestHandlers) {
 	handlers = reqHandlers
-
-	if reqHandlers["pty-req"] == nil {
-		reqHandlers["pty-req"] = defaultHandlePty
-	}
-
-	if reqHandlers["window-change"] == nil {
-		reqHandlers["window-change"] = defaultHandleWindowChange
-	}
-
-	if reqHandlers["exec"] == nil {
-		reqHandlers["exec"] = defaultHandleExec
-	}
-
-	if reqHandlers["shell"] == nil {
-		reqHandlers["shell"] = defaultHandleShell
-	}
 }
 
 func handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
-	state := SessionState{
+	state := Session{
 		Channel: ch,
 		Storage: make(map[string]any),
 	}

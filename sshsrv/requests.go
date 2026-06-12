@@ -7,7 +7,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type PtyRequest struct {
+type ptyRequest struct {
 	Term          string
 	WidthChars    uint32
 	HeightRows    uint32
@@ -16,14 +16,14 @@ type PtyRequest struct {
 	TerminalModes string
 }
 
-type WindowChange struct {
+type windowChange struct {
 	WidthChars   uint32
 	HeightRows   uint32
 	WidthPixels  uint32
 	HeightPixels uint32
 }
 
-type ExecRequest struct {
+type execRequest struct {
 	Command string
 }
 
@@ -31,8 +31,8 @@ func sendExitStatus(ch ssh.Channel, status uint32) {
 	_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: status}))
 }
 
-func defaultHandlePty(state *SessionState, req ssh.Request) {
-	var pty PtyRequest
+func defaultHandlePty(state *Session, req ssh.Request) {
+	var pty ptyRequest
 
 	if err := ssh.Unmarshal(req.Payload, &pty); err != nil {
 		log.Printf("failed to parse pty request: %v", err)
@@ -52,8 +52,8 @@ func defaultHandlePty(state *SessionState, req ssh.Request) {
 	req.Reply(true, nil)
 }
 
-func defaultHandleWindowChange(state *SessionState, req ssh.Request) {
-	var wc WindowChange
+func defaultHandleWindowChange(state *Session, req ssh.Request) {
+	var wc windowChange
 
 	if err := ssh.Unmarshal(req.Payload, &wc); err != nil {
 		log.Printf("failed to parse pty request: %v", err)
@@ -72,10 +72,10 @@ func defaultHandleWindowChange(state *SessionState, req ssh.Request) {
 	req.Reply(false, nil)
 }
 
-func defaultHandleExec(state *SessionState, req ssh.Request) {
+func defaultHandleExec(state *Session, req ssh.Request) {
 	defer state.Close()
 
-	var payload ExecRequest
+	var payload execRequest
 
 	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
 		req.Reply(false, nil)
@@ -94,7 +94,7 @@ func defaultHandleExec(state *SessionState, req ssh.Request) {
 	sendExitStatus(state.Channel, 0)
 }
 
-func defaultHandleShell(state *SessionState, req ssh.Request) {
+func defaultHandleShell(state *Session, req ssh.Request) {
 	req.Reply(true, nil)
 
 	go func() {

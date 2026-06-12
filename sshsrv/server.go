@@ -4,18 +4,10 @@ import (
 	"log"
 	"net"
 	"os"
-	"path"
 	"strconv"
 
 	"golang.org/x/crypto/ssh"
 )
-
-type Config struct {
-	Port            int
-	PrivateKeyFile  string
-	RequestHandlers RequestHandlers
-	Authentication  Authentication
-}
 
 func handleServerConn(channels <-chan ssh.NewChannel) {
 	for newChannel := range channels {
@@ -73,22 +65,6 @@ func getHostKey(keyPath string) (ssh.Signer, error) {
 }
 
 func RunServer(config Config) {
-	if config.Authentication.PublicKeyHandler == nil {
-		config.Authentication.PublicKeyHandler = defaultPublicKeyAuth
-	}
-
-	if config.Authentication.Attributes == nil {
-		config.Authentication.Attributes = map[string]string{}
-	}
-
-	if config.PrivateKeyFile == "" {
-		config.PrivateKeyFile = path.Join(".ssh", "key")
-	}
-
-	if config.Port == 0 {
-		config.Port = 2222
-	}
-
 	sshConfig := &ssh.ServerConfig{}
 
 	sshConfig.NoClientAuth = config.Authentication.EnableNoAuth
@@ -103,11 +79,8 @@ func RunServer(config Config) {
 	if err != nil {
 		log.Fatalf("Error loading host key: %v", err)
 	}
-	sshConfig.AddHostKey(key)
 
-	if config.RequestHandlers == nil {
-		config.RequestHandlers = RequestHandlers{}
-	}
+	sshConfig.AddHostKey(key)
 
 	setRequestHandlers(config.RequestHandlers)
 
