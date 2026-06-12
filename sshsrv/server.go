@@ -1,15 +1,21 @@
 package sshsrv
 
 import (
+	"bytes"
 	"errors"
 	"log"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"golang.org/x/crypto/ssh"
 )
+
+type Config struct {
+	Port               int
+	PrivateKeyFile     string
+	AuthorizedKeysFile string
+}
 
 func handleServerConn(channels <-chan ssh.NewChannel) {
 	for newChannel := range channels {
@@ -52,34 +58,46 @@ func listen(config *ssh.ServerConfig, port int) {
 	}
 }
 
-func authorizePublicKey(key ssh.PublicKey) (bool, error) {
-	fp := ssh.FingerprintSHA256(key)
-	log.Println(fp)
-	return true, nil // TODO: check if public key is authorized
+func authorizePublicKey(key ssh.PublicKey, keyFile string) (bool, error) {
+	authorizedKeysBytes, err := os.ReadFile(keyFile)
+	if err != nil {
+		return false, err
+	}
+
+	for len(authorizedKeysBytes) > 0 {
+		pubKey, _, _, rest, err := ssh.ParseAuthorizedKey(authorizedKeysBytes)
+		if err != nil {
+			return false, err
+		}
+
+		if bytes.Equal(pubKey.Marshal(), key.Marshal()) {
+			return true, nil
+		}
+
+		authorizedKeysBytes = rest
+	}
+
+	return false, nil
 }
 
-func getHostKeys() ([]ssh.Signer, error) {
-	var hostKeys []ssh.Signer
-
-	keyPath := filepath.Join(".ssh", "key")
-
+func getHostKey(keyPath string) (ssh.Signer, error) {
 	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
 		return nil, err
 	}
+
 	signer, err := ssh.ParsePrivateKey(keyData)
 	if err != nil {
 		return nil, err
 	}
 
-	hostKeys = append(hostKeys, signer)
-	return hostKeys, nil
+	return signer, nil
 }
 
-func RunServer(port int, reqHandlers RequestHandlers) {
-	config := &ssh.ServerConfig{
+func RunServer(config Config, reqHandlers RequestHandlers) {
+	serverConfig := &ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			authorized, err := authorizePublicKey(key)
+			authorized, err := authorizePublicKey(key, config.AuthorizedKeysFile)
 			if err != nil {
 				return nil, err
 			}
@@ -93,15 +111,13 @@ func RunServer(port int, reqHandlers RequestHandlers) {
 		},
 	}
 
-	keys, err := getHostKeys()
+	key, err := getHostKey(config.PrivateKeyFile)
 	if err != nil {
-		log.Fatalf("Error loading host keys: %v", err)
+		log.Fatalf("Error loading host key: %v", err)
 	}
-	for _, key := range keys {
-		config.AddHostKey(key)
-	}
+	serverConfig.AddHostKey(key)
 
 	setRequestHandlers(reqHandlers)
 
-	listen(config, port)
+	listen(serverConfig, config.Port)
 }
