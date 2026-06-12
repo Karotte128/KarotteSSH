@@ -27,10 +27,6 @@ type execRequest struct {
 	Command string
 }
 
-func sendExitStatus(ch ssh.Channel, status uint32) {
-	_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: status}))
-}
-
 func defaultHandlePty(state *Session, req ssh.Request) {
 	var pty ptyRequest
 
@@ -73,8 +69,6 @@ func defaultHandleWindowChange(state *Session, req ssh.Request) {
 }
 
 func defaultHandleExec(state *Session, req ssh.Request) {
-	defer state.Close()
-
 	var payload execRequest
 
 	if err := ssh.Unmarshal(req.Payload, &payload); err != nil {
@@ -91,14 +85,14 @@ func defaultHandleExec(state *Session, req ssh.Request) {
 		log.Printf("error writing to channel: %v", err)
 	}
 
-	sendExitStatus(state.Channel, 0)
+	state.Close(0)
 }
 
 func defaultHandleShell(state *Session, req ssh.Request) {
 	req.Reply(true, nil)
 
 	go func() {
-		defer state.Close()
+		defer state.Close(0)
 
 		buf := make([]byte, 1024)
 

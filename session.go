@@ -15,7 +15,7 @@ type Session struct {
 	closed bool
 }
 
-func (s *Session) Close() {
+func (s *Session) Close(status uint32) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -25,9 +25,14 @@ func (s *Session) Close() {
 
 	s.closed = true
 
-	err := s.Channel.Close()
+	_, err := s.Channel.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: status}))
 	if err != nil {
-		log.Printf("Error closing session: %v", err)
+		log.Printf("Error sending exit status: %v", err)
+	}
+
+	closeErr := s.Channel.Close()
+	if closeErr != nil {
+		log.Printf("Error closing session: %v", closeErr)
 	}
 }
 

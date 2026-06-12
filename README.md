@@ -477,6 +477,65 @@ type Session struct {
 }
 ```
 
+## Closing a Session
+
+When a handler has finished processing a request, it should close the session using an SSH exit status.
+
+```go
+state.Close(0)
+```
+
+The exit status is sent to the client before the channel is closed.
+
+### Success
+
+An exit status of `0` indicates successful execution:
+
+```go
+state.Channel.Write([]byte("Hello!\n"))
+state.Close(0)
+```
+
+### Failure
+
+Non-zero values indicate an error:
+
+```go
+state.Channel.Write([]byte("Invalid command\n"))
+state.Close(1)
+```
+
+### Example
+
+```go
+config.RequestHandlers["exec"] = func(
+    state *karottessh.Session,
+    req ssh.Request,
+) {
+    req.Reply(true, nil)
+
+    if err := doSomething(); err != nil {
+        state.Channel.Write([]byte(err.Error() + "\n"))
+        state.Close(1)
+        return
+    }
+
+    state.Channel.Write([]byte("Success\n"))
+    state.Close(0)
+}
+```
+
+SSH clients can access this status just like the exit code of a normal process.
+
+For example:
+
+```bash
+ssh -p 2222 localhost some-command
+echo $?
+```
+
+The value printed by `echo $?` will be the exit status passed to `Session.Close()`.
+
 ## Session Storage
 
 Handlers can share state through:
@@ -518,7 +577,7 @@ config.RequestHandlers["shell"] = func(
     req.Reply(true, nil)
 
     state.Channel.Write([]byte("Hello!\n"))
-    state.Close()
+    state.Close(0)
 }
 ```
 
@@ -537,7 +596,7 @@ config.RequestHandlers["exec"] = func(
         "Custom exec handler\n",
     ))
 
-    state.Close()
+    state.Close(0)
 }
 ```
 
@@ -582,7 +641,7 @@ func main() {
             "Welcome to KarotteSSH!\n",
         ))
 
-        state.Close()
+        state.Close(0)
     }
 
     log.Fatal(karottessh.RunServer(config))
