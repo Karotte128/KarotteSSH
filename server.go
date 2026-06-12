@@ -1,6 +1,7 @@
 package karottessh
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -64,7 +65,7 @@ func getHostKey(keyPath string) (ssh.Signer, error) {
 	return signer, nil
 }
 
-func RunServer(config Config) {
+func RunServer(config Config) error {
 	sshConfig := &ssh.ServerConfig{}
 
 	sshConfig.NoClientAuth = config.Authentication.EnableNoAuth
@@ -83,7 +84,7 @@ func RunServer(config Config) {
 
 	key, err := getHostKey(config.PrivateKeyFile)
 	if err != nil {
-		log.Fatalf("Error loading host key: %v", err)
+		return fmt.Errorf("Error loading host key: %v", err)
 	}
 
 	sshConfig.AddHostKey(key)
@@ -91,4 +92,6 @@ func RunServer(config Config) {
 	setRequestHandlers(config.RequestHandlers)
 
 	listen(sshConfig, config.Port)
+
+	return nil
 }
