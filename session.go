@@ -1,4 +1,4 @@
-package sshsrv
+package karottessh
 
 import (
 	"log"

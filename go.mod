@@ -1,4 +1,4 @@
-module ssh-go
+module github.com/karotte128/karottessh
 
 go 1.26.3
 
