@@ -1,20 +1,20 @@
 package sshsrv
 
 import (
-	"bytes"
-	"errors"
 	"log"
 	"net"
 	"os"
+	"path"
 	"strconv"
 
 	"golang.org/x/crypto/ssh"
 )
 
 type Config struct {
-	Port               int
-	PrivateKeyFile     string
-	AuthorizedKeysFile string
+	Port            int
+	PrivateKeyFile  string
+	RequestHandlers RequestHandlers
+	Authentication  Authentication
 }
 
 func handleServerConn(channels <-chan ssh.NewChannel) {
@@ -58,28 +58,6 @@ func listen(config *ssh.ServerConfig, port int) {
 	}
 }
 
-func authorizePublicKey(key ssh.PublicKey, keyFile string) (bool, error) {
-	authorizedKeysBytes, err := os.ReadFile(keyFile)
-	if err != nil {
-		return false, err
-	}
-
-	for len(authorizedKeysBytes) > 0 {
-		pubKey, _, _, rest, err := ssh.ParseAuthorizedKey(authorizedKeysBytes)
-		if err != nil {
-			return false, err
-		}
-
-		if bytes.Equal(pubKey.Marshal(), key.Marshal()) {
-			return true, nil
-		}
-
-		authorizedKeysBytes = rest
-	}
-
-	return false, nil
-}
-
 func getHostKey(keyPath string) (ssh.Signer, error) {
 	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
@@ -94,30 +72,44 @@ func getHostKey(keyPath string) (ssh.Signer, error) {
 	return signer, nil
 }
 
-func RunServer(config Config, reqHandlers RequestHandlers) {
-	serverConfig := &ssh.ServerConfig{
-		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
-			authorized, err := authorizePublicKey(key, config.AuthorizedKeysFile)
-			if err != nil {
-				return nil, err
-			}
+func RunServer(config Config) {
+	if config.Authentication.PublicKeyHandler == nil {
+		config.Authentication.PublicKeyHandler = defaultPublicKeyAuth
+	}
 
-			if authorized {
-				return &ssh.Permissions{}, nil
-			} else {
-				return nil, errors.New("unauthorized")
-			}
+	if config.Authentication.Attributes == nil {
+		config.Authentication.Attributes = map[string]string{}
+	}
 
-		},
+	if config.PrivateKeyFile == "" {
+		config.PrivateKeyFile = path.Join(".ssh", "key")
+	}
+
+	if config.Port == 0 {
+		config.Port = 2222
+	}
+
+	sshConfig := &ssh.ServerConfig{}
+
+	sshConfig.NoClientAuth = config.Authentication.EnableNoAuth
+
+	if config.Authentication.EnablePublicKeyAuth {
+		sshConfig.PublicKeyCallback = func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			return config.Authentication.PublicKeyHandler(conn, key, config.Authentication.Attributes)
+		}
 	}
 
 	key, err := getHostKey(config.PrivateKeyFile)
 	if err != nil {
 		log.Fatalf("Error loading host key: %v", err)
 	}
-	serverConfig.AddHostKey(key)
+	sshConfig.AddHostKey(key)
 
-	setRequestHandlers(reqHandlers)
+	if config.RequestHandlers == nil {
+		config.RequestHandlers = RequestHandlers{}
+	}
 
-	listen(serverConfig, config.Port)
+	setRequestHandlers(config.RequestHandlers)
+
+	listen(sshConfig, config.Port)
 }
