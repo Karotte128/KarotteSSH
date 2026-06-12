@@ -39,11 +39,9 @@ func defaultHandlePty(state *Session, req ssh.Request) {
 		return
 	}
 
-	state.Mu.Lock()
-	state.Storage["term"] = pty.Term
-	state.Storage["width"] = pty.WidthChars
-	state.Storage["height"] = pty.HeightRows
-	state.Mu.Unlock()
+	state.SetStorage("term", pty.Term)
+	state.SetStorage("width", pty.WidthChars)
+	state.SetStorage("height", pty.HeightRows)
 
 	req.Reply(true, nil)
 }
@@ -60,10 +58,8 @@ func defaultHandleWindowChange(state *Session, req ssh.Request) {
 		return
 	}
 
-	state.Mu.Lock()
-	state.Storage["width"] = wc.WidthChars
-	state.Storage["height"] = wc.HeightRows
-	state.Mu.Unlock()
+	state.SetStorage("width", wc.WidthChars)
+	state.SetStorage("height", wc.HeightRows)
 
 	req.Reply(false, nil)
 }

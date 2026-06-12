@@ -9,15 +9,47 @@ import (
 
 type Session struct {
 	Channel ssh.Channel
-	Storage map[string]any
+	Conn    *ssh.Conn
 
-	Mu     sync.RWMutex
+	storage map[string]any
+
+	mu     sync.RWMutex
 	closed bool
 }
 
+func (s *Session) SetStorage(key string, value any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.storage[key] = value
+}
+
+func (s *Session) GetStorage(key string) (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	value, ok := s.storage[key]
+	return value, ok
+}
+
+func (s *Session) DeleteStorage(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.storage, key)
+}
+
+func (s *Session) HasStorage(key string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	_, ok := s.storage[key]
+	return ok
+}
+
 func (s *Session) Close(status uint32) {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if s.closed {
 		return
@@ -37,8 +69,8 @@ func (s *Session) Close(status uint32) {
 }
 
 func (s *Session) Closed() bool {
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	return s.closed
 }
@@ -51,10 +83,11 @@ func setRequestHandlers(reqHandlers RequestHandlers) {
 	handlers = reqHandlers
 }
 
-func handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
+func handleSession(ch ssh.Channel, reqs <-chan *ssh.Request, conn *ssh.Conn) {
 	state := Session{
 		Channel: ch,
-		Storage: make(map[string]any),
+		storage: make(map[string]any),
+		Conn:    conn,
 	}
 
 	for req := range reqs {

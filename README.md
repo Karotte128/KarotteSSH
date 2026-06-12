@@ -473,7 +473,7 @@ Each SSH session is represented by:
 ```go
 type Session struct {
     Channel ssh.Channel
-    Storage map[string]any
+    Conn    *ssh.Conn
 }
 ```
 
@@ -538,21 +538,101 @@ The value printed by `echo $?` will be the exit status passed to `Session.Close(
 
 ## Session Storage
 
-Handlers can share state through:
+Each session contains a thread-safe key-value store that can be used to share state between request handlers.
 
 ```go
-state.Storage
+type Session struct {
+    // ...
+
+    // storage methods
+    SetStorage(key string, value any)
+    GetStorage(key string) (any, bool)
+    DeleteStorage(key string)
+    HasStorage(key string) bool
+}
 ```
 
-The built-in handlers use it to store:
+### Storing Values
 
 ```go
-state.Storage["term"]
-state.Storage["width"]
-state.Storage["height"]
+state.SetStorage("username", "alice")
+state.SetStorage("authenticated", true)
 ```
 
-after PTY requests.
+### Reading Values
+
+```go
+value, ok := state.GetStorage("username")
+if ok {
+    username := value.(string)
+    fmt.Println(username)
+}
+```
+
+### Checking for a Value
+
+```go
+if state.HasStorage("username") {
+    fmt.Println("username is available")
+}
+```
+
+### Deleting a Value
+
+```go
+state.DeleteStorage("username")
+```
+
+### Sharing State Between Handlers
+
+The session storage is useful for passing information between different SSH request handlers.
+
+For example, a custom request handler may store information that is later used by a shell or exec handler:
+
+```go
+config.RequestHandlers["custom"] = func(
+    state *karottessh.Session,
+    req ssh.Request,
+) {
+    state.SetStorage("role", "admin")
+    req.Reply(true, nil)
+}
+```
+
+Later:
+
+```go
+config.RequestHandlers["shell"] = func(
+    state *karottessh.Session,
+    req ssh.Request,
+) {
+    req.Reply(true, nil)
+
+    if role, ok := state.GetStorage("role"); ok {
+        state.Channel.Write([]byte(
+            fmt.Sprintf("Role: %s\n", role),
+        ))
+    }
+
+    state.Close(0)
+}
+```
+
+### Built-in Usage
+
+The built-in PTY handlers store terminal information in the session storage:
+
+```go
+state.SetStorage("term", term)
+state.SetStorage("width", width)
+state.SetStorage("height", height)
+```
+
+These values can be retrieved by custom handlers if terminal information is required.
+
+### Concurrency
+
+All storage operations are safe for concurrent use by multiple goroutines. Access the session storage through the provided methods rather than maintaining your own references to shared state.
 
 ---
 

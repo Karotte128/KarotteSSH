@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func handleServerConn(channels <-chan ssh.NewChannel) {
+func handleServerConn(channels <-chan ssh.NewChannel, conn ssh.Conn) {
 	for newChannel := range channels {
 		if newChannel.ChannelType() != "session" {
 			_ = newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
@@ -23,7 +23,7 @@ func handleServerConn(channels <-chan ssh.NewChannel) {
 			continue
 		}
 
-		go handleSession(ch, reqs)
+		go handleSession(ch, reqs, &conn)
 	}
 }
 
@@ -34,20 +34,20 @@ func listen(config *ssh.ServerConfig, port int) {
 	}
 
 	for {
-		conn, err := listener.Accept()
+		netConn, err := listener.Accept()
 		if err != nil {
 			log.Printf("Connection error: %v", err)
 			continue
 		}
 
-		_, chans, reqs, err := ssh.NewServerConn(conn, config)
+		conn, chans, reqs, err := ssh.NewServerConn(netConn, config)
 		if err != nil {
 			log.Printf("Handshake error: %v", err)
 			continue
 		}
 
 		go ssh.DiscardRequests(reqs)
-		go handleServerConn(chans)
+		go handleServerConn(chans, conn)
 	}
 }
 
