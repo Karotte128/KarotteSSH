@@ -22,9 +22,12 @@ func NewConfig() Config {
 		Authentication: Authentication{
 			Attributes: map[string]string{
 				"authorized_keys_file": path.Join(".ssh", "authorized_keys"),
+				"password_file":        path.Join(".ssh", "passwords"),
 			},
 			PublicKeyHandler:    defaultPublicKeyAuth,
 			EnablePublicKeyAuth: true,
+			PasswordHandler:     defaultPasswordAuth,
+			EnablePasswordAuth:  false,
 			EnableNoAuth:        false,
 		},
 	}

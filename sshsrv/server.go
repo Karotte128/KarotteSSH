@@ -75,6 +75,12 @@ func RunServer(config Config) {
 		}
 	}
 
+	if config.Authentication.EnablePasswordAuth {
+		sshConfig.PasswordCallback = func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return config.Authentication.PasswordHandler(conn, password, config.Authentication.Attributes)
+		}
+	}
+
 	key, err := getHostKey(config.PrivateKeyFile)
 	if err != nil {
 		log.Fatalf("Error loading host key: %v", err)
